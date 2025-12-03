@@ -1,0 +1,19 @@
+# LaTeX временные файлы
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+
+# Логи и прочее
+texput.log
+
+# Скомпилированный PDF (можем его тоже добавить, но опционально)
+# *.pdf
