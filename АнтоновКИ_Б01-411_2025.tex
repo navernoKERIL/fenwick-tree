@@ -1,0 +1,420 @@
+\documentclass[14pt, aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{patterns}
+\usepackage{adjustbox}
+
+\definecolor{primary}{RGB}{41,128,185}
+\definecolor{secondary}{RGB}{52,152,219}
+\definecolor{accent}{RGB}{231,76,60}
+
+\setbeamercolor{title}{fg=white, bg=primary}
+\setbeamercolor{frametitle}{fg=white, bg=secondary}
+\setbeamercolor{block title}{fg=white, bg=accent}
+
+% Уменьшение размера заголовков
+\setbeamerfont{frametitle}{size=\small}
+\setbeamerfont{block title}{size=\footnotesize}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{}
+
+\lstset{
+    language=C++,
+    basicstyle=\ttfamily\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=2pt,
+    backgroundcolor=\color{white},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    frame=single,
+    tabsize=2,
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=true
+}
+
+\title{Дерево Фенвика: одномерное, двумерное}
+\author{Антонов Кирилл \\ Б01-411}
+\date{Курс «Алгоритмы и структуры данных»}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Мотивация: Real-time аналитика}
+\scriptsize
+\begin{block}{Проблема}
+\begin{itemize}
+\item Массив \texttt{продаж[регионы][дни]} — 100 регионов × 365 дней  
+\item Типовой запрос: $\sum_{\text{регион}=r_1}^{r_2} \sum_{\text{день}=d_1}^{d_2} \text{продажи}[\text{регион}][\text{день}]$
+\\Требуется: мгновенные отчеты + real-time обновления  
+\end{itemize}
+\end{block}
+
+\begin{block}{Базовые подходы}
+\begin{adjustbox}{max width=\textwidth, max height=0.65\textheight}
+\scriptsize
+\begin{tabular}{lccc}
+\textbf{Метод} & \textbf{Запрос} & \textbf{Обновление} & \textbf{Примечание} \\
+\hline
+\textcolor{gray}{Без предподсчёта} & O(N²) & O(1) & Полный перебор \\
+\textcolor{gray}{С предподсчётом} & O(1) & O(N²) & Префиксные суммы \\
+\textbf{Дерево Фенвика} & \textbf{O(log N)} & \textbf{O(log N)} & \textcolor{accent}{Оптимальное решение}
+\end{tabular}
+\end{adjustbox}
+\end{block}
+
+\begin{alertblock}{Вывод}
+Для реальных данных (36\,500 элементов) нужна структура, эффективная
+и для запросов, и для обновлений → \textbf{дерево Фенвика}
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Математическая формулировка}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{block}{Одномерный случай}
+Дан массив $A[0..n-1]$
+\begin{itemize}
+\item $\text{update}(i, \Delta): A[i] \leftarrow A[i] + \Delta$
+\item $\text{prefix\_sum}(k): \sum_{j=0}^{k} A[j]$
+\item $\text{range\_sum}(l, r): \text{prefix\_sum}(r) - \text{prefix\_sum}(l-1)$
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{Двумерный случай}
+Дан массив $A[0..n-1][0..m-1]$
+\begin{itemize}
+\item $\text{update}(x, y, \Delta): A[x][y] \leftarrow A[x][y] + \Delta$
+\item $\text{rectangle\_sum}(x_1, y_1, x_2, y_2): \sum_{i=x_1}^{x_2} \sum_{j=y_1}^{y_2} A[i][j]$
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Принцип работы 1D}
+\begin{block}{Ключевая идея}
+\begin{itemize}
+\item Используем двоичное представление индексов
+\item $\text{fenw}[i]$ хранит сумму $A[i - 2^k + 1 \dots i]$, т.ч. $2^k = i \& -i$
+\end{itemize}
+\end{block}
+
+\begin{exampleblock}{Распределение блоков для n=8}
+\begin{adjustbox}{max width=\textwidth}
+\scriptsize
+\begin{tabular}{|c|c|c|c|}
+\hline
+Индекс & Двоично & $2^k$ & Диапазон \\
+\hline
+1 & 001 & 1 & [1,1] \\
+2 & 010 & 2 & [1,2] \\
+3 & 011 & 1 & [3,3] \\
+4 & 100 & 4 & [1,4] \\
+5 & 101 & 1 & [5,5] \\
+6 & 110 & 2 & [5,6] \\
+7 & 111 & 1 & [7,7] \\
+8 & 1000 & 8 & [1,8] \\
+\hline
+\end{tabular}
+\end{adjustbox}
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}[fragile]{Операции 1D: реализация}
+\begin{lstlisting}[numbers=none, basicstyle=\ttfamily\scriptsize]
+int lsb(int x){ 
+    return x & -x; 
+}
+
+int prefix_sum(int i, int fenw[]){
+    int sum = 0;
+    for (; i > 0; i -= lsb(i))
+        sum += fenw[i];
+    return sum;
+}
+
+void update(int i, int delta, int fenw[], int n){
+    for (; i <= n; i += lsb(i))
+        fenw[i] += delta;
+}
+
+int range_sum(int l, int r, int fenw[]){
+    return prefix_sum(r, fenw) - prefix_sum(l-1, fenw);
+}
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Визуализация: запрос суммы до 16}
+\begin{center}
+\includegraphics[width=0.8\textwidth]{fenw.png}
+
+\vspace{0.5cm}
+\small Запрос sum(15): блоки 15 + 14 + 12 + 8 = [1..15]
+\end{center}
+\end{frame}
+
+\begin{frame}{Обобщение на 2D случай}
+\begin{block}{Принцип «дерево деревьев»}
+\begin{itemize}
+\item $\text{fenw}[i][j]$ хранит сумму прямоугольника $[i-2^k+1..i] \times [j-2^l+1..j]$
+\item Операции: два вложенных цикла
+\end{itemize}
+\end{block}
+
+\begin{exampleblock}{Сложность операций}
+\begin{adjustbox}{max width=\textwidth}
+\scriptsize
+\begin{tabular}{lcc}
+Размерность & Запрос & Обновление \\
+\hline
+1D & O(log n) & O(log n) \\
+2D & O(log n × log m) & O(log n × log m) \\
+3D & O(log n × log m × log k) & O(log n × log m × log k) \\
+\end{tabular}
+\end{adjustbox}
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}[fragile]{Реализация 2D Фенвика}
+\begin{lstlisting}[numbers=none, basicstyle=\ttfamily\fontsize{7}{8}\selectfont]
+void update_2d(int x, int y, int delta, 
+  vector<vector<int>> &fenw, int n, int m){
+    for (int i = x; i <= n; i += lsb(i))
+        for (int j = y; j <= m; j += lsb(j))
+            fenw[i][j] += delta;
+}
+
+int prefix_sum_2d(int x, int y, 
+  vector<vector<int>> &fenw){
+    int sum = 0;
+    for (int i = x; i > 0; i -= lsb(i))
+        for (int j = y; j > 0; j -= lsb(j))
+            sum += fenw[i][j];
+    return sum;
+}
+
+int rectangle_sum(int x1, int y1, int x2, int y2,
+  vector<vector<int>> &fenw){
+    return prefix_sum_2d(x2, y2, fenw)
+         - prefix_sum_2d(x1-1, y2, fenw) 
+         - prefix_sum_2d(x2, y1-1, fenw)
+         + prefix_sum_2d(x1-1, y1-1, fenw);
+}
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Бенчмарки: Фенвик vs Наивные подходы}
+\scriptsize
+\begin{block}{Тестовая среда}
+\begin{itemize}
+\item Размер массива: 100,000 элементов
+\item Количество операций: 50,000
+\item Процессор: Intel i5, 16GB RAM
+\item ОС: Manjaro Linux, ядро 6.12.48-1-MANJARO
+\item Компилятор: g++ (GCC) 15.2.1 20250813
+\end{itemize}
+\end{block}
+
+\begin{exampleblock}{Результаты (миллисекунды)}
+\begin{adjustbox}{max width=\textwidth}
+\footnotesize
+\begin{tabular}{lccc}
+Метод & 100\% запросы & 100\% обновления & 50/50 смешанно \\
+\hline
+\textbf{Фенвик} & \textbf{9 мс} & \textbf{3 мс} & \textbf{4 мс} \\
+Наивный (запрос) & 5,6 с & 1 мс & 2,7 с \\
+Наивный (префикс) & 1 мс & 22,7 с & 11 с \\
+\end{tabular}
+\end{adjustbox}
+\end{exampleblock}
+
+\begin{alertblock}{Вывод}
+В смешанной нагрузке Фенвик \textbf{в 700-2800 раз} быстрее!
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Сложность по времени: 1D случай}
+\scriptsize
+
+\begin{block}{Операции}
+\begin{itemize}
+\item \texttt{update(i, delta)}: $O(\log n)$
+\item \texttt{prefix\_sum(i)}: $O(\log n)$  
+\item \texttt{range\_sum(l, r)}: $O(\log n)$
+\end{itemize}
+\end{block}
+
+\begin{block}{Доказательство для \texttt{prefix\_sum}}
+\begin{itemize}
+\item На каждой итерации: $i = i - \text{LSB}(i)$
+\item LSB(i) $\geq$ 1, поэтому итераций $\leq$ количества бит в $n$
+\item Количество бит = $\lceil \log_2 n \rceil = O(\log n)$
+\end{itemize}
+\end{block}
+
+\begin{block}{Доказательство для \texttt{update}}
+\begin{itemize}
+\item Аналогично: $i = i + \text{LSB}(i)$
+\item Максимальное значение LSB(i) = $2^{\lfloor \log_2 n \rfloor}$
+\item Итераций $\leq \log_2 n$
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Сложность по времени: 2D случай}
+\scriptsize
+
+\begin{block}{Операции}
+\begin{itemize}
+\item \texttt{update\_2d(x, y, delta)}: $O(\log n \times \log m)$
+\item \texttt{prefix\_sum\_2d(x, y)}: $O(\log n \times \log m)$
+\item \texttt{rectangle\_sum(x1, y1, x2, y2)}: $O(\log n \times \log m)$
+\end{itemize}
+\end{block}
+
+\begin{block}{Доказательство}
+\begin{itemize}
+\item Внешний цикл: $O(\log n)$ итераций
+\item Внутренний цикл: $O(\log m)$ итераций
+\item Итого: $O(\log n) \times O(\log m) = O(\log n \times \log m)$
+\end{itemize}
+\end{block}
+
+\begin{exampleblock}{Пример}
+Для $n = m = 1024$: $\log_2 1024 = 10$, \\
+$10 \times 10 = 100$ операций vs $1024^2 = 1,048,576$
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}{Сложность по памяти}
+\scriptsize
+
+\begin{block}{1D случай}
+\begin{itemize}
+\item Требуется массив размера $n$
+\item Память: $O(n)$
+\item \textbf{Доказательство}: Храним ровно $n$ элементов
+\end{itemize}
+\end{block}
+
+\begin{block}{2D случай}
+\begin{itemize}
+\item Требуется матрица размера $n \times m$
+\item Память: $O(n \times m)$
+\item \textbf{Доказательство}: Храним $n \times m$ элементов
+\end{itemize}
+\end{block}
+
+\begin{block}{Сравнение с деревом отрезков}
+\begin{itemize}
+\item \textbf{Фенвик}: $O(n)$ vs \textbf{Дерево отрезков}: $O(2n)$
+\item В 2D: $O(nm)$ vs $O(4nm)$
+\item Выигрыш в памяти: в 2-4 раза!
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Амортизационный анализ}
+\scriptsize
+
+\begin{block}{Константы в O-нотации}
+\begin{itemize}
+\item \texttt{update}: $\approx 2\log n$ операций
+\item \texttt{prefix\_sum}: $\approx 2\log n$ операций  
+\item На практике: очень маленькие константы
+\end{itemize}
+\end{block}
+
+\begin{block}{Сравнение операций}
+\begin{adjustbox}{max width=\textwidth}
+\scriptsize
+\begin{tabular}{lccc}
+Операция & Фенвик & Дерево отрезков & Выигрыш \\
+\hline
+Сложение & 1 такт & 3-5 тактов & 3-5x \\
+Обращение к памяти & $\log n$ & $2\log n$ & 2x \\
+\end{tabular}
+\end{adjustbox}
+\end{block}
+
+\begin{block}{Практическая эффективность}
+\begin{itemize}
+\item Лучшая локальность данных
+\item Меньше branching (условных переходов)  
+\item Быстрее на реальных процессорах
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Доказательство корректности}
+\scriptsize
+
+\begin{block}{Инвариант}
+Для любого $i > 0$, $\text{fenw}[i]$ содержит сумму элементов \\
+$A[i - 2^k + 1 \dots i]$, где $2^k = \text{LSB}(i)$
+\end{block}
+
+\begin{block}{Доказательство по индукции}
+\begin{itemize}
+\item \textbf{База}: Для $n = 1$: $\text{fenw}[1] = A[1]$ $\checkmark$
+\item \textbf{Переход}: Предположим верно для $n-1$ элементов
+\item $\text{update}(n)$ обновляет все $\text{fenw}[i]$ где $i = n + 2^m$
+\item Каждый такой $i$ покрывает корректный диапазон
+\end{itemize}
+\end{block}
+
+\begin{block}{Корректность \texttt{prefix\_sum}}
+\begin{itemize}
+\item Любое число $n$ можно представить как сумму степеней 2
+\item $n = 2^{k_1} + 2^{k_2} + \dots + 2^{k_m}$
+\item Алгоритм собирает именно эти блоки
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Оптимальность}
+\scriptsize
+
+\begin{block}{Нижняя оценка}
+\begin{itemize}
+\item Любая структура для динамического RSQ
+\item Должна тратить $\Omega(\log n)$ на операцию
+\item Фенвик достигает этой границы!
+\end{itemize}
+\end{block}
+
+\begin{block}{Теорема}
+Не существует структуры данных, которая поддерживает \\
+\texttt{update} и \texttt{prefix\_sum} быстрее чем $O(\log n)$ \\
+в модели сравнений.
+\end{block}
+
+\begin{block}{Почему Фенвик оптимален?}
+\begin{itemize}
+\item Достигает теоретического минимума
+\item Константы близки к оптимальным
+\item Использует минимально возможную память
+\end{itemize}
+\end{block}
+\end{frame}
+
+\end{document}
